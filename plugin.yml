@@ -1,0 +1,8 @@
+name: MoonMod
+main: com.unkzdomain.MoonMod.MoonMod
+version: "0.1-pre"
+commands:
+    /launch:
+        description: Launch player to Moon or Earth. If no player is given, defaults to self.
+        usage: /<command> <player> [Moon|Earth]
+        aliases: ['/l']
