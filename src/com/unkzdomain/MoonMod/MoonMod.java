@@ -112,7 +112,7 @@ public class MoonMod extends JavaPlugin {
 		String commandName = command.getName().toLowerCase();
 
 		// Command Syntax: "/launch [player (defaults to self)] planet"
-		if (commandName.equals("launch")) {
+		if (commandName.equals("launch")|| commandName.equals("l")) {
 			return performGoToCommand(sender, trimmedArgs);
 		}
 		return false;
