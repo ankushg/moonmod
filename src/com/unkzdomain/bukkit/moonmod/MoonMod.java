@@ -10,12 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 
-import org.bukkit.Location;
 import org.bukkit.Server;
 import org.bukkit.World;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginDescriptionFile;
@@ -30,10 +26,9 @@ import com.nijiko.permissions.PermissionHandler;
 
 public class MoonMod extends JavaPlugin {
 	
-	private World earthWorld = null;
-	private World moonWorld = null;
+	World earthWorld = null;
+	World moonWorld = null;
 	public ArrayList<String> chunkList;
-	private MoonModWorldListener worldListener;
 	private Timer tick = null;
 	private int rate = 1000;
 	private long dayStart;
@@ -52,16 +47,32 @@ public class MoonMod extends JavaPlugin {
 	
 	@Override
 	public void onDisable() {
-		if (tick != null) {
-			tick.cancel();
-			tick = null;
-		}
+		this.stopTimer();
 		saveChunkList();
 		saveConfig();
 		
 		PluginDescriptionFile pdfFile = getDescription();
 		System.out.println(pdfFile.getName() + " version "
 				+ pdfFile.getVersion() + " is disabled!");
+	}
+	
+	// Start timer that keeps Moon world at a specific time
+	private void startTimer() {
+		MoonModTimerTask timerTask = new MoonModTimerTask();
+		timerTask.server = this.getServer();
+		timerTask.worldName = this.moonWorldName;
+		timerTask.dayStart = this.dayStart;
+		
+		tick = new Timer();
+		tick.schedule(timerTask, 0, rate);
+	}
+	
+	// Stop the timer's ticking
+	private void stopTimer() {
+		if (tick != null) {
+			tick.cancel();
+			tick = null;
+		}
 	}
 	
 	@Override
@@ -71,24 +82,20 @@ public class MoonMod extends JavaPlugin {
 		setWorlds();
 		loadChunkList();
 		
-		MoonModTimerTask timerTask = new MoonModTimerTask();
-		timerTask.server = this.getServer();
-		timerTask.worldName = this.moonWorldName;
-		timerTask.dayStart = this.dayStart;
+		this.startTimer();
 		
-		tick = new Timer();
-		tick.schedule(timerTask, 0, rate);
-		
-		worldListener = new MoonModWorldListener(this);
 		PluginManager pm = getServer().getPluginManager();
-		pm.registerEvent(Event.Type.CHUNK_LOADED, worldListener,
-				Event.Priority.High, this);
+		pm.registerEvent(Event.Type.CHUNK_LOADED,
+				new MoonModWorldListener(this), Event.Priority.Normal, this);
+		pm.registerEvent(Event.Type.PLAYER_COMMAND, new MoonModPlayerListener(
+				this), Event.Priority.Normal, this);
 		
 		PluginDescriptionFile pdfFile = getDescription();
 		System.out.println(pdfFile.getName() + " version "
 				+ pdfFile.getVersion() + " is enabled!");
 	}
 	
+	// Uses Ninjiko's Permissions system until Bukkit has its own
 	public void setupPermissions() {
 		Plugin test = this.getServer().getPluginManager()
 				.getPlugin("Permissions");
@@ -105,6 +112,8 @@ public class MoonMod extends JavaPlugin {
 		}
 	}
 	
+	// Load settings from Config file. If file does not exist, use default
+	// settings provided
 	private void loadConfig() {
 		Configuration config = this.getConfiguration();
 		this.earthWorldName = config.getString("moonmod.earth-world-name",
@@ -133,6 +142,9 @@ public class MoonMod extends JavaPlugin {
 		}
 	}
 	
+	// Save current settings to Config file. If Config file doesn't already
+	// exist, create it with current settings (which would most likely be the
+	// defaults)
 	private void saveConfig() {
 		Configuration config = this.getConfiguration();
 		config.setProperty("moonmod.earth-world-name", this.earthWorldName);
@@ -146,6 +158,7 @@ public class MoonMod extends JavaPlugin {
 		config.save();
 	}
 	
+	// Set Earth and Moon worlds based on world names in Config
 	private void setWorlds() {
 		List<World> worlds = getServer().getWorlds();
 		
@@ -172,118 +185,11 @@ public class MoonMod extends JavaPlugin {
 		
 	}
 	
-	@Override
-	public boolean onCommand(CommandSender sender, Command command,
-			String commandLabel, String[] args) {
-		String[] trimmedArgs = args;
-		String commandName = command.getName().toLowerCase();
-		
-		if (commandName.equals("launch") || commandName.equals("l")) {
-			if (!anonymousCheck(sender)
-					&& !MoonMod.perms.has((Player) sender,
-							"moonmod.launch.self")) {
-				// TODO: Notify permissions failed
-				return false;
-			}
-			return performLaunchCommand(sender, trimmedArgs);
-		} else if (commandName.equals("launchp") || commandName.equals("lp")) {
-			if (!anonymousCheck(sender)
-					&& !MoonMod.perms.has((Player) sender,
-							"moonmod.launch.others")) {
-				// TODO: Notify permissions failed
-				return false;
-			}
-			return performLaunchPCommand(sender, trimmedArgs);
-		}
-		return false;
-	}
-	
-	private boolean performLaunchCommand(CommandSender sender, String[] args) {
-		if (anonymousCheck(sender)) {
-			// TODO: Output error message saying that it only works with Players
-			return false;
-		}
-		Player player = (Player) sender;
-		String launchTo;
-		
-		if (args.length == 0) {
-			launchTo = getOtherWorld(player);
-		} else if (args.length == 1) {
-			launchTo = args[0];
-		} else {
-			// TODO: Output error message giving proper command usage
-			return false;
-		}
-		
-		this.notifyLaunch(sender, player);
-		return launchPlayer(player, launchTo);
-	}
-	
-	private boolean performLaunchPCommand(CommandSender sender, String[] args) {
-		Player player;
-		String launchTo;
-		
-		if (args.length == 1) {
-			player = this.getServer().getPlayer(args[0]);
-			launchTo = this.getOtherWorld(player);
-		} else if (args.length == 2) {
-			player = this.getServer().getPlayer(args[0]);
-			launchTo = args[1];
-		} else {
-			// TODO: Output error message giving proper command usage
-			return false;
-		}
-		
-		this.notifyLaunch(sender, player);
-		return launchPlayer(player, launchTo);
-	}
-	
-	private void notifyLaunch(CommandSender sender, Player player) {
-		// TODO: Notify player that they were launched by Sender
-		
-	}
-	
-	private String getOtherWorld(Player player) {
-		if (player.getWorld().getName().equalsIgnoreCase(earthWorldName)) {
-			return this.moonWorldName;
-		} else if (player.getWorld().getName().equalsIgnoreCase(moonWorldName)) {
-			return this.earthWorldName;
-		}
-		
-		return "";
-	}
-	
-	private boolean launchPlayer(Player player, String launchTo) {
-		if (player.getWorld().getName().equalsIgnoreCase(launchTo)) {
-			
-		} else if (launchTo.equalsIgnoreCase(moonWorldText)) {
-			Location loc = moonWorld.getSpawnLocation();
-			player.teleportTo(loc);
-			player.setCompassTarget(loc);
-		} else if (launchTo.equalsIgnoreCase(earthWorldText)) {
-			Location loc = earthWorld.getSpawnLocation();
-			player.teleportTo(loc);
-			player.setCompassTarget(loc);
-		} else {
-			return false;
-		}
-		
-		return true;
-	}
-	
-	private boolean anonymousCheck(CommandSender sender) {
-		if (!(sender instanceof Player)) {
-			sender.sendMessage("Cannot execute that command, I don't know who you are!");
-			return true;
-		} else {
-			return false;
-		}
-	}
-	
+	// Save list of chunks that have been processed to a file
 	boolean saveChunkList() {
 		try {
 			FileOutputStream fileOut = new FileOutputStream(
-					this.getDataFolder() + chunkListFileName);
+					this.getDataFolder() + "/" + chunkListFileName);
 			ObjectOutputStream out = new ObjectOutputStream(fileOut);
 			out.writeObject(chunkList);
 			out.close();
@@ -295,11 +201,13 @@ public class MoonMod extends JavaPlugin {
 		}
 	}
 	
+	// Load list of processed chunks from file. If not possible, create new list
+	// of chunks.
 	@SuppressWarnings("unchecked")
 	boolean loadChunkList() {
 		try {
 			FileInputStream fileIn = new FileInputStream(this.getDataFolder()
-					+ chunkListFileName);
+					+ "/" + chunkListFileName);
 			ObjectInputStream in = new ObjectInputStream(fileIn);
 			chunkList = (ArrayList<String>) in.readObject();
 			in.close();
@@ -307,10 +215,10 @@ public class MoonMod extends JavaPlugin {
 			return true;
 		} catch (IOException i) {
 			i.printStackTrace();
-			return false;
 		} catch (ClassNotFoundException c) {
 			c.printStackTrace();
-			return false;
 		}
+		chunkList = new ArrayList<String>();
+		return true;
 	}
 }

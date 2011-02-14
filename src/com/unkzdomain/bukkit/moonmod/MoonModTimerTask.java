@@ -23,7 +23,6 @@ public class MoonModTimerTask extends TimerTask {
 		}
 		// if sunset just finished and settings are sunset
 		else if (relativeTime > 13800 && this.dayStart == 12000) {
-			
 			// set sunset
 			server.getWorld(worldName).setTime(startOfDay + 12000);
 		}

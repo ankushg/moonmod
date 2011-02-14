@@ -4,9 +4,9 @@ version: "0.1-pre"
 commands:
     /launch:
         description: Launch self to Moon or Earth.
-        usage: /<command> <Moon|Earth>
+        usage: /<command> [Moon|Earth]
         aliases: ['/l']
     /launchp:
         description: Launch player to Moon or Earth.
-        usage: /<command> <player> <Moon|Earth>
+        usage: /<command> <player> [Moon|Earth]
         aliases: ['/lp']
